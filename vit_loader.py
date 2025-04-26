@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from model import VisionTransformer
+from vision_transformer import VisionTransformer
 
 def create_vit_model(model_name: str, num_classes: int = 1000) -> VisionTransformer:
     """Create a Vision Transformer model with the specified weights."""

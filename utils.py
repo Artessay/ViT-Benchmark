@@ -1,6 +1,8 @@
 import os
 import torch
 import random
+import logging
+import argparse
 import numpy as np
 
 def seed_everything(seed):
@@ -11,3 +13,41 @@ def seed_everything(seed):
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
+
+
+def setup_logger(save_path) -> logging.Logger:
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+
+    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+
+    # console output
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
+
+    # file output
+    log_file = save_path.replace('.pth', '.log')
+    file_handler = logging.FileHandler(log_file, mode="w")  # use 'w' to overwrite existing file, default is 'a' (append)
+    file_handler.setLevel(logging.INFO)
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+
+    return logger
+
+
+def get_args():
+    """
+    Parse command line arguments.
+    """
+    parser = argparse.ArgumentParser(description="ViT Benchmark")
+
+    # pretrain, finetune, continue train
+    parser.add_argument('-m', '--mode', type=str, help='train mode', choices=['pt', 'ft', 'cft', 'ncft'], default='ft')
+    
+    parser.add_argument('-d', '--dataset', type=str, default='cifar-100', help='Dataset name')
+    parser.add_argument('-s', '--seed', type=int, default=42, help='Random seed')
+    
+    args = parser.parse_args()
+    return args

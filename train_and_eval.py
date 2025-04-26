@@ -1,9 +1,12 @@
 import torch
 import torch.nn.functional as F
+
+from tqdm import tqdm
+from logging import Logger
 from torch.optim import Optimizer
 from torch.utils.data import DataLoader
 from torchvision.models import VisionTransformer
-from tqdm import tqdm
+from torch.utils.tensorboard import SummaryWriter
 
 def train_one_epoch(model: VisionTransformer, train_loader: DataLoader, optimizer: Optimizer, device):
     model.to(device)
@@ -23,50 +26,31 @@ def train_one_epoch(model: VisionTransformer, train_loader: DataLoader, optimize
         running_loss += loss.item()
     return running_loss / len(train_loader)
 
-def train(model: VisionTransformer, train_loader: DataLoader, val_loader: DataLoader, optimizer: Optimizer, epochs: int, patience: int, save_path: str, device):
+def train(model: VisionTransformer, train_loader: DataLoader, val_loader: DataLoader, optimizer: Optimizer, epochs: int, patience: int, save_path: str, device: torch.device, logger: Logger, writer: SummaryWriter):
     best_accuracy = 0.0
     patience_counter = 0
     for epoch in range(epochs):
+        # Train the model
         loss = train_one_epoch(model, train_loader, optimizer, device)
-        print(f'Epoch {epoch + 1}, Loss: {loss:.5f}')
+        logger.info(f'Epoch {epoch + 1}, Loss: {loss:.5f}')
+        writer.add_scalar('Loss/train', loss, epoch)
+        # Validate the model
         val_accuracy = evaluate(model, val_loader, device)
-        print(f'Validation Accuracy: {val_accuracy * 100:.2f}%')
+        logger.info(f'Validation Accuracy: {val_accuracy * 100:.2f}%')
+        writer.add_scalar('Accuracy/val', val_accuracy, epoch)
 
         # Save the model checkpoint if validation accuracy improves
         if val_accuracy > best_accuracy:
             best_accuracy = val_accuracy
-            print(f"Saving model with accuracy: {best_accuracy * 100:.2f}%")
+            logger.info(f"Saving model with accuracy: {best_accuracy * 100:.2f}%")
             torch.save(model.state_dict(), save_path)
             patience_counter = 0
         else:
             patience_counter += 1
             if patience_counter >= patience:
-                print(f"Early stopping at epoch {epoch + 1}")
+                logger.info(f"Early stopping at epoch {epoch + 1}")
                 break
-    print(f"Best validation accuracy: {best_accuracy * 100:.2f}%")
-
-def train_head(model: VisionTransformer, train_loader: DataLoader, val_loader: DataLoader, epochs: int, patience: int, lr: float, save_path: str, device):
-    for name, param in model.named_parameters():
-        if "heads" in name:
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
-
-    optimizer = torch.optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=lr
-    )
-    
-    train(model, train_loader, val_loader, optimizer, epochs, patience, save_path, device)
-
-def train_full(model: VisionTransformer, train_loader: DataLoader, val_loader: DataLoader, epochs: int, patience: int, lr: float, save_path: str, device):
-    for param in model.parameters():
-        param.requires_grad = True
-
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-
-    train(model, train_loader, val_loader, optimizer, epochs, patience, save_path, device)
-
+    logger.info(f"Best validation accuracy: {best_accuracy * 100:.2f}%")
 
 def evaluate(model: VisionTransformer, test_loader: DataLoader, device):
     model.to(device)
@@ -82,3 +66,68 @@ def evaluate(model: VisionTransformer, test_loader: DataLoader, device):
             correct_pretrained += (predicted == labels).sum().item()
 
     return correct_pretrained / total_pretrained
+
+def train_head(
+        model: VisionTransformer, 
+        train_loader: DataLoader, 
+        val_loader: DataLoader, 
+        epochs: int, 
+        patience: int, 
+        lr: float, 
+        save_path: str, 
+        device: torch.device, 
+        logger: Logger, 
+        writer: SummaryWriter,
+):
+    for name, param in model.named_parameters():
+        if "heads" in name:
+            param.requires_grad = True
+        else:
+            param.requires_grad = False
+
+    optimizer = torch.optim.Adam(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=lr
+    )
+    
+    train(model, train_loader, val_loader, optimizer, epochs, patience, save_path, device, logger, writer)
+
+def train_full(
+        model: VisionTransformer, 
+        train_loader: DataLoader, 
+        val_loader: DataLoader, 
+        epochs: int, 
+        patience: int, 
+        lr: float, 
+        save_path: str, 
+        device: torch.device, 
+        logger: Logger, 
+        writer: SummaryWriter,
+):
+    for param in model.parameters():
+        param.requires_grad = True
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+
+    train(model, train_loader, val_loader, optimizer, epochs, patience, save_path, device, logger, writer)
+
+
+def train_with_partial_activate(
+        model: VisionTransformer, 
+        train_loader: DataLoader, 
+        val_loader: DataLoader, 
+        epochs: int, 
+        patience: int, 
+        lr: float, 
+        save_path: str, 
+        device: torch.device, 
+        logger: Logger, 
+        writer: SummaryWriter,
+):
+    optimizer = torch.optim.Adam(
+        filter(lambda p: p.requires_grad, model.parameters()),
+        lr=lr
+    )
+
+    train(model, train_loader, val_loader, optimizer, epochs, patience, save_path, device, logger, writer)
+
