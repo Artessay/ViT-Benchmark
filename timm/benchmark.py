@@ -59,7 +59,7 @@ def evaluate_model(model, test_loader):
 if __name__ == '__main__':
     import csv
     with open(CONFIG['output_file'], 'w') as f:
-        writer = csv.DictWriter(f, fieldnames=['dataset','model','pretrained_top1','finetuned_top1','finetuned_top5'])
+        writer = csv.DictWriter(f, fieldnames=['dataset','model','pretrained_accuracy','finetuned_accuracy'])
         writer.writeheader()
         
         for dataset_cfg in CONFIG['datasets']:
@@ -86,6 +86,6 @@ if __name__ == '__main__':
             writer.writerow({
                 'dataset': dataset_cfg['name'],
                 'model': dataset_cfg['model_mapping'],
-                'pretrained_': f"{pretrained_accuracy:.4f}",
+                'pretrained_accuracy': f"{pretrained_accuracy:.4f}",
                 'finetuned_accuracy': f"{finetuned_accuracy:.4f}",
             })

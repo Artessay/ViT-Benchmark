@@ -1,5 +1,5 @@
 import os
-from timm.data import create_dataset, create_loader
+from timm.data import create_dataset, create_loader, create_transform
 from timm.data.constants import IMAGENET_DEFAULT_MEAN, IMAGENET_DEFAULT_STD
 
 def get_data_loader(dataset_name, batch_size=32, input_size=224):
@@ -13,6 +13,7 @@ def get_data_loader(dataset_name, batch_size=32, input_size=224):
         train_loader, val_loader: 训练和验证数据加载器
     """
     # 数据集路径配置（需要根据实际路径修改）
+    name = f"torch/{dataset_name}"
     data_dir = f"data/{dataset_name}"
     
     # 创建数据集变换
@@ -39,16 +40,18 @@ def get_data_loader(dataset_name, batch_size=32, input_size=224):
     # 创建训练集和验证集
     train_dataset = create_dataset(
         root=os.path.join(data_dir, 'train'),
-        name=dataset_name,
+        name=name,
         split='train',
-        transform=transform
+        transform=transform,
+        download=True,
     )
     
     val_dataset = create_dataset(
         root=os.path.join(data_dir, 'val'),
-        name=dataset_name,
+        name=name,
         split='validation',
-        transform=transform
+        transform=transform,
+        download=True,
     )
 
     # 创建数据加载器

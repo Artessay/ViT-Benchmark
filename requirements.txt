@@ -1,5 +1,0 @@
-timm>=0.9.10
-torch>=2.0.0
-torchvision>=0.15.1
-numpy>=1.23.5
-tqdm>=4.66.1
