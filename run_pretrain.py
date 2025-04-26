@@ -1,28 +1,36 @@
 import torch
-import torch.nn as nn
-from torchvision.models import vit_b_16, ViT_B_16_Weights
 
 from data_loader import get_data_loader
-from train_and_eval import evaluate
+from train_and_eval import train_head, evaluate
 from utils import seed_everything
 from model import create_vit_model
 
+
 batch_size = 512
-epochs = 10
+epochs = 50
+patience = 5
 lr = 1e-3
 seed = 42
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 def main():
     seed_everything(seed)
-    _, test_loader = get_data_loader("cifar-100", batch_size=batch_size)
+
+    dataset_name = "cifar-100"
+    model_name = "vit_b_16"
+    train_loader, test_loader = get_data_loader(dataset_name, batch_size=batch_size)
 
 
     # 加载预训练的ViT模型
-    model_pretrained = create_vit_model("vit_b_16")
+    vit_model = create_vit_model(model_name)
+
+    # 训练分类头
+    save_path = f"checkpoints/{model_name}_{dataset_name}_pt_head.pth"
+    train_head(vit_model, train_loader, test_loader, epochs, patience, lr, save_path, device)
+    print("Training completed.")
 
     # 测试预训练模型
-    accuracy_pretrained = evaluate(model_pretrained, test_loader, device)
+    accuracy_pretrained = evaluate(vit_model, test_loader, device)
     print(f'Accuracy of the pretrained model on the test images: {100 * accuracy_pretrained}%')
     
 if __name__ == "__main__":
