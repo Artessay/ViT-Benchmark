@@ -17,4 +17,6 @@ Download
 wget https://download.pytorch.org/models/vit_b_16-c867db91.pth
 ```
 
-## Eva
+## Evaluation Result
+
+85.55

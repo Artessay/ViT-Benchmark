@@ -28,9 +28,9 @@ def train(model: VisionTransformer, train_loader: DataLoader, val_loader: DataLo
     patience_counter = 0
     for epoch in range(epochs):
         loss = train_one_epoch(model, train_loader, optimizer, device)
-        print(f'\nEpoch {epoch + 1}, Loss: {loss:.5f}')
+        print(f'Epoch {epoch + 1}, Loss: {loss:.5f}')
         val_accuracy = evaluate(model, val_loader, device)
-        print(f'\nValidation Accuracy: {val_accuracy * 100:.2f}%')
+        print(f'Validation Accuracy: {val_accuracy * 100:.2f}%')
 
         # Save the model checkpoint if validation accuracy improves
         if val_accuracy > best_accuracy:
