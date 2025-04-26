@@ -4,8 +4,9 @@ from torch.utils.tensorboard import SummaryWriter
 from config import CONFIG
 from data_loader import get_data_loader
 from vit_loader import create_vit_model, load_vit_model
-from train_and_eval import train_head, train_full, evaluate
+from train_and_eval import train_with_partial_activate, evaluate
 from utils import seed_everything, setup_logger
+from neural_activation import active_head, active_full
 
 def main(args):
     seed = args.seed
@@ -37,9 +38,13 @@ def main(args):
 
     # 训练分类头
     if mode == 'pt':
-        train_head(vit_model, train_loader, val_loader, epochs, patience, lr, save_path, device, logger, writer)
+        active_head(vit_model)
+    elif mode == 'ft' or mode == 'cft':
+        active_full(vit_model)
     else:
-        train_full(vit_model, train_loader, val_loader, epochs, patience, lr, save_path, device, logger, writer)
+        raise ValueError(f"Mode {mode} is not supported.")
+    
+    train_with_partial_activate(vit_model, train_loader, val_loader, epochs, patience, lr, save_path, device, logger, writer)
     logger.info("Training completed.")
 
     # 测试预训练模型

@@ -67,51 +67,6 @@ def evaluate(model: VisionTransformer, test_loader: DataLoader, device):
 
     return correct_pretrained / total_pretrained
 
-def train_head(
-        model: VisionTransformer, 
-        train_loader: DataLoader, 
-        val_loader: DataLoader, 
-        epochs: int, 
-        patience: int, 
-        lr: float, 
-        save_path: str, 
-        device: torch.device, 
-        logger: Logger, 
-        writer: SummaryWriter,
-):
-    for name, param in model.named_parameters():
-        if "heads" in name:
-            param.requires_grad = True
-        else:
-            param.requires_grad = False
-
-    optimizer = torch.optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=lr
-    )
-    
-    train(model, train_loader, val_loader, optimizer, epochs, patience, save_path, device, logger, writer)
-
-def train_full(
-        model: VisionTransformer, 
-        train_loader: DataLoader, 
-        val_loader: DataLoader, 
-        epochs: int, 
-        patience: int, 
-        lr: float, 
-        save_path: str, 
-        device: torch.device, 
-        logger: Logger, 
-        writer: SummaryWriter,
-):
-    for param in model.parameters():
-        param.requires_grad = True
-
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-
-    train(model, train_loader, val_loader, optimizer, epochs, patience, save_path, device, logger, writer)
-
-
 def train_with_partial_activate(
         model: VisionTransformer, 
         train_loader: DataLoader, 

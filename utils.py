@@ -28,7 +28,7 @@ def setup_logger(save_path) -> logging.Logger:
     logger.addHandler(console_handler)
 
     # file output
-    log_file = save_path.replace('.pth', '.log')
+    log_file = save_path.replace('checkpoints', 'logs').replace('.pth', '.log')
     file_handler = logging.FileHandler(log_file, mode="w")  # use 'w' to overwrite existing file, default is 'a' (append)
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
