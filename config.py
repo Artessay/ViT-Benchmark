@@ -2,6 +2,7 @@ CONFIG = {
     'cifar-10': {
         'epochs': 50, 
         'patience': 5,
+        'pt_lr': 1e-3,
         'lr': 3e-5,
         'batch_size': 512,
         'num_classes': 10,
@@ -10,9 +11,19 @@ CONFIG = {
     'cifar-100': {
         'epochs': 50, 
         'patience': 5,
+        'pt_lr': 1e-3,
         'lr': 3e-5,
         'batch_size': 512,
         'num_classes': 100,
+        'model_name': 'vit_b_16'
+    },
+    'imagenet': {
+        'epochs': 50, 
+        'patience': 5,
+        'pt_lr': 1e-3,
+        'lr': 3e-5,
+        'batch_size': 512,
+        'num_classes': 1000,
         'model_name': 'vit_b_16'
     },
 }

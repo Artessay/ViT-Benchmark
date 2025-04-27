@@ -33,7 +33,8 @@ def main(args):
     logger.info(f"Model: {model_name}, Dataset: {dataset_name}, Mode: {mode}")
     writer = SummaryWriter(f'runs/{model_name}_{dataset_name}_{mode}_{seed}')
 
-    epochs, patience, lr = config['epochs'], config['patience'], config['lr']
+    epochs, patience = config['epochs'], config['patience']
+    lr = config['pt_lr'] if mode == 'pt' else config['lr']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     # 训练分类头
@@ -50,7 +51,7 @@ def main(args):
     # 测试预训练模型
     vit_model.load_state_dict(torch.load(save_path))
     accuracy_pretrained = evaluate(vit_model, test_loader, device)
-    logger.info(f'Accuracy on the test set: {100 * accuracy_pretrained: .4f}%')
+    logger.info(f'Accuracy on the test set: {100 * accuracy_pretrained: .2f}%')
     writer.close()
     
 if __name__ == "__main__":

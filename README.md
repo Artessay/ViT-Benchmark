@@ -12,4 +12,17 @@ wget https://download.pytorch.org/models/vit_b_16-c867db91.pth -O checkpoints/vi
 
 ## Evaluation Result
 
-85.55
+| dataset | method | accuracy |
+|:----:|:----:|:----:|
+| **cifar - 10** | pt | - |
+| | ft | 97.67 |
+| | cft | - |
+| | ncft | - |
+| **cifar - 100** | pt | - |
+| | ft | 85.52 |
+| | cft | - |
+| | ncft | - |
+| **imagenet** | pt | - |
+| | ft | - |
+| | cft | - |
+| | ncft | - |
