@@ -15,7 +15,7 @@ def seed_everything(seed):
     torch.backends.cudnn.deterministic = True
 
 
-def setup_logger(save_path) -> logging.Logger:
+def setup_logger(log_file) -> logging.Logger:
     logger = logging.getLogger(__name__)
     logger.setLevel(logging.INFO)
 
@@ -28,7 +28,6 @@ def setup_logger(save_path) -> logging.Logger:
     logger.addHandler(console_handler)
 
     # file output
-    log_file = save_path.replace('checkpoints', 'logs').replace('.pth', '.log')
     file_handler = logging.FileHandler(log_file, mode="w")  # use 'w' to overwrite existing file, default is 'a' (append)
     file_handler.setLevel(logging.INFO)
     file_handler.setFormatter(formatter)
@@ -44,7 +43,7 @@ def get_args():
     parser = argparse.ArgumentParser(description="ViT Benchmark")
 
     # pretrain, finetune, continue train
-    parser.add_argument('-m', '--mode', type=str, help='train mode', choices=['pt', 'ft', 'cft', 'ncft'], default='ft')
+    parser.add_argument('-m', '--mode', type=str, help='train mode', choices=['pt', 'ft', 'cft', 'r-ncft', 'w-ncft', 's-ncft'], default='ft')
     
     parser.add_argument('-d', '--dataset', type=str, default='cifar-100', help='Dataset name')
     parser.add_argument('-s', '--seed', type=int, default=42, help='Random seed')

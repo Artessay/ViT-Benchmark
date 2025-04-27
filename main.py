@@ -6,11 +6,12 @@ from data_loader import get_data_loader
 from vit_loader import create_vit_model, load_vit_model
 from train_and_eval import train_with_partial_activate, evaluate
 from utils import seed_everything, setup_logger
-from neural_activation import active_head, active_full
+from neural_function import active_head, active_full, activate_random, activate_based_on_gradient_trace
 
 def main(args):
     seed = args.seed
     mode = args.mode
+    activate_ratio = 0.7
     dataset_name = args.dataset
     seed_everything(seed)
 
@@ -23,25 +24,36 @@ def main(args):
     num_classes = config['num_classes']
     if mode in ['pt', 'ft']:
         vit_model = create_vit_model(model_name, num_classes=num_classes)
-    elif mode in ['cft', 'ncft']:
+    elif 'cft' in mode:
         weights_path = f"checkpoints/{model_name}_{dataset_name}_pt_{seed}.pth"
         vit_model = load_vit_model(weights_path, num_classes=num_classes)
+    else:
+        raise ValueError(f"Mode {mode} is not supported.")
 
     # 准备日志
-    save_path = f"checkpoints/{model_name}_{dataset_name}_{mode}_{seed}.pth"
-    logger = setup_logger(save_path)
+    if "ncft" in mode:
+        experiment_name = f"{model_name}_{dataset_name}_{mode}_{seed}_r{activate_ratio}"
+    else:
+        experiment_name = f"{model_name}_{dataset_name}_{mode}_{seed}"
+    save_path = f"checkpoints/{experiment_name}.pth"
+    logger = setup_logger(f"logs/{experiment_name}.log")
     logger.info(f"Model: {model_name}, Dataset: {dataset_name}, Mode: {mode}")
-    writer = SummaryWriter(f'runs/{model_name}_{dataset_name}_{mode}_{seed}')
+    writer = SummaryWriter(f'runs/{experiment_name}')
 
     epochs, patience = config['epochs'], config['patience']
     lr = config['pt_lr'] if mode == 'pt' else config['lr']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    vit_model = vit_model.to(device)
 
     # 训练分类头
     if mode == 'pt':
         active_head(vit_model)
     elif mode == 'ft' or mode == 'cft':
         active_full(vit_model)
+    elif mode == 'r-ncft':
+        activate_random(vit_model, activate_ratio)
+    elif mode == 'w-ncft':
+        activate_based_on_gradient_trace(vit_model, activate_ratio, val_loader, device)
     else:
         raise ValueError(f"Mode {mode} is not supported.")
     
