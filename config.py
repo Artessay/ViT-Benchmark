@@ -22,9 +22,9 @@ CONFIG = {
     'imagenet': {
         'epochs': 50, 
         'patience': 5,
-        'pt_lr': 3e-3,
+        'pt_lr': 1e-3,
         'lr': 3e-5,
-        'weight_decay': 0.1,
+        'weight_decay': 1e-4,
         'batch_size': 512,
         'num_classes': 1000,
         'model_name': 'vit_b_16'

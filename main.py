@@ -1,12 +1,12 @@
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
+import neural_function
 from config import CONFIG
 from data_loader import get_data_loader
 from vit_loader import create_vit_model, load_vit_model
 from train_and_eval import train_with_partial_activate, evaluate
 from utils import seed_everything, setup_logger
-from neural_function import active_head, active_full, activate_random, activate_based_on_gradient_trace
 
 def main(args):
     seed = args.seed
@@ -48,13 +48,13 @@ def main(args):
 
     # 训练分类头
     if mode == 'pt':
-        active_head(vit_model)
+        neural_function.activate_head(vit_model)
     elif mode == 'ft' or mode == 'cft':
-        active_full(vit_model)
+        neural_function.activate_full(vit_model)
     elif mode == 'r-ncft':
-        activate_random(vit_model, activate_ratio)
+        neural_function.activate_random(vit_model, activate_ratio)
     elif mode == 'w-ncft':
-        activate_based_on_gradient_trace(vit_model, activate_ratio, val_loader, device)
+        neural_function.activate_based_on_gradient_trace(vit_model, activate_ratio, val_loader, device)
     else:
         raise ValueError(f"Mode {mode} is not supported.")
     

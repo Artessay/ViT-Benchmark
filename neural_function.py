@@ -5,16 +5,52 @@ from tqdm import tqdm
 from torch.utils.data import DataLoader
 from vision_transformer import VisionTransformer
 
-def active_head(model: VisionTransformer):
+def activate_head(model: VisionTransformer):
     for name, param in model.named_parameters():
         if "heads" in name:
             param.requires_grad = True
         else:
             param.requires_grad = False
 
-def active_full(model: VisionTransformer):
+def activate_full(model: VisionTransformer):
     for param in model.parameters():
         param.requires_grad = True
+
+
+def activate_neuron_random(model: VisionTransformer, activate_ratio: float):
+    """randomly select some neurals, and froze other neurals"""
+    neuron_groups = {}
+    for name, param in model.named_parameters():
+        if "encoder.layers" in name and "mlp" in name:
+            # Get the neuron identifier by removing the .weight or .bias suffix
+            neuron_key = name.rsplit('.', 1)[0]
+            neuron_value = name.rsplit('.', 1)[1]
+            assert neuron_value in ['weight', 'bias']
+
+            if neuron_key not in neuron_groups:
+                neuron_groups[neuron_key] = {}
+            neuron_groups[neuron_key][neuron_value] = param
+        else:
+            param.requires_grad = True
+
+    # Set the requires_grad attribute of parameters
+    for neuron_key, param_dict in neuron_groups.items():
+        weight_param: torch.nn.Parameter = param_dict['weight']
+        bias_param: torch.nn.Parameter = param_dict['bias']
+        assert weight_param.shape[0] == bias_param.shape[0]
+        num_neurons = weight_param.shape[0]
+        num_activate = int(num_neurons * activate_ratio)
+
+        # Randomly select neuron groups to activate
+        activate_indices = random.sample(range(num_neurons), k=num_activate)
+
+        # Create a mask to indicate activate neurons
+        mask = torch.zeros(num_neurons, dtype=torch.bool)
+        mask[activate_indices] = True
+
+        # Set non - activate neurons' weight and bias to 0
+        weight_param.data[~mask] = 0
+        bias_param.data[~mask] = 0
 
 def activate_random(model: VisionTransformer, activate_ratio: float):
     """randomly select some neurals, and froze other neurals"""
@@ -33,9 +69,6 @@ def activate_random(model: VisionTransformer, activate_ratio: float):
     num_neurons = len(neuron_groups)
     num_activate = int(num_neurons * activate_ratio)
     activate_neuron_keys = random.sample(list(neuron_groups.keys()), num_activate)
-
-    # 这段代码是有问题的，比如在linear层的param中，一个weight就是一个n维的向量，我们只需要deactivate其中一部分参数
-    assert False
 
     # Set the requires_grad attribute of parameters
     for neuron_key, param_group in neuron_groups.items():
