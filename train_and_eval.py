@@ -74,6 +74,7 @@ def train_with_partial_activate(
         epochs: int, 
         patience: int, 
         lr: float, 
+        weight_decay: float,
         save_path: str, 
         device: torch.device, 
         logger: Logger, 
@@ -81,7 +82,8 @@ def train_with_partial_activate(
 ):
     optimizer = torch.optim.Adam(
         filter(lambda p: p.requires_grad, model.parameters()),
-        lr=lr
+        lr=lr,
+        weight_decay=weight_decay,
     )
 
     train(model, train_loader, val_loader, optimizer, epochs, patience, save_path, device, logger, writer)

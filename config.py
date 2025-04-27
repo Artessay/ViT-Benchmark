@@ -4,6 +4,7 @@ CONFIG = {
         'patience': 5,
         'pt_lr': 1e-3,
         'lr': 3e-5,
+        'weight_decay': 0.0,
         'batch_size': 512,
         'num_classes': 10,
         'model_name': 'vit_b_16'
@@ -13,6 +14,7 @@ CONFIG = {
         'patience': 5,
         'pt_lr': 1e-3,
         'lr': 3e-5,
+        'weight_decay': 0.0,
         'batch_size': 512,
         'num_classes': 100,
         'model_name': 'vit_b_16'
@@ -20,8 +22,9 @@ CONFIG = {
     'imagenet': {
         'epochs': 50, 
         'patience': 5,
-        'pt_lr': 1e-3,
+        'pt_lr': 3e-3,
         'lr': 3e-5,
+        'weight_decay': 0.1,
         'batch_size': 512,
         'num_classes': 1000,
         'model_name': 'vit_b_16'

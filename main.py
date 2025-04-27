@@ -42,6 +42,7 @@ def main(args):
 
     epochs, patience = config['epochs'], config['patience']
     lr = config['pt_lr'] if mode == 'pt' else config['lr']
+    weight_decay = config['weight_decay']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vit_model = vit_model.to(device)
 
@@ -57,7 +58,7 @@ def main(args):
     else:
         raise ValueError(f"Mode {mode} is not supported.")
     
-    train_with_partial_activate(vit_model, train_loader, val_loader, epochs, patience, lr, save_path, device, logger, writer)
+    train_with_partial_activate(vit_model, train_loader, val_loader, epochs, patience, lr, weight_decay, save_path, device, logger, writer)
     logger.info("Training completed.")
 
     # 测试预训练模型

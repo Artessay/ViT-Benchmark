@@ -17,11 +17,11 @@ wget https://download.pytorch.org/models/vit_b_16-c867db91.pth -O checkpoints/vi
 | **cifar - 10** | pt | 94.58 |
 | | ft | 97.67 |
 | | cft | 97.99 |
-| | ncft-random | - |
+| | ncft-random | 98.02 |
 | **cifar - 100** | pt | 79.69 |
 | | ft | 85.52 |
 | | cft | 87.05 |
-| | ncft-random | - |
+| | ncft-random | 86.74 |
 | **imagenet** | pt | - |
 | | ft | - |
 | | cft | - |
