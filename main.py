@@ -1,3 +1,4 @@
+import json
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
@@ -11,7 +12,6 @@ from utils import seed_everything, setup_logger
 def main(args):
     seed = args.seed
     mode = args.mode
-    activate_ratio = 0.7
     dataset_name = args.dataset
     seed_everything(seed)
 
@@ -31,6 +31,7 @@ def main(args):
         raise ValueError(f"Mode {mode} is not supported.")
 
     # 准备日志
+    activate_ratio = config['activate_ratio']
     if "ncft" in mode:
         experiment_name = f"{model_name}_{dataset_name}_{mode}_{seed}_r{activate_ratio}"
     else:
@@ -44,7 +45,6 @@ def main(args):
     lr = config['pt_lr'] if mode == 'pt' else config['lr']
     weight_decay = config['weight_decay']
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    vit_model = vit_model.to(device)
 
     if mode == 'pt':
         neural_function.activate_head(vit_model)
@@ -62,9 +62,14 @@ def main(args):
 
     # 测试预训练模型
     vit_model.load_state_dict(torch.load(save_path))
-    accuracy_pretrained = evaluate(vit_model, test_loader, device)
-    logger.info(f'Accuracy on the test set: {100 * accuracy_pretrained: .2f}%')
+    accuracy = evaluate(vit_model, test_loader, device)
+    logger.info(f'Accuracy on the test set: {100 * accuracy: .2f}%')
     writer.close()
+
+    config["accuracy"] = round(100 * accuracy, 2)
+    result_path = f"results/train_{experiment_name}.json"
+    with open(result_path, "w") as f:
+        json.dump(config, f, indent=4)
     
 if __name__ == "__main__":
     from utils import get_args

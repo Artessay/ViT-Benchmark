@@ -7,6 +7,7 @@ CONFIG = {
         'weight_decay': 0.0,
         'batch_size': 512,
         'num_classes': 10,
+        'activate_ratio': 0.7,
         'model_name': 'vit_b_16'
     },
     'cifar-100': {
@@ -17,6 +18,7 @@ CONFIG = {
         'weight_decay': 0.0,
         'batch_size': 512,
         'num_classes': 100,
+        'activate_ratio': 0.7,
         'model_name': 'vit_b_16'
     },
     'imagenet': {
@@ -27,6 +29,7 @@ CONFIG = {
         'weight_decay': 1e-4,
         'batch_size': 512,
         'num_classes': 1000,
+        'activate_ratio': 0.7,
         'model_name': 'vit_b_16'
     },
 }

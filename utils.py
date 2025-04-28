@@ -43,7 +43,7 @@ def get_args():
     parser = argparse.ArgumentParser(description="ViT Benchmark")
 
     # pretrain, finetune, continue train
-    parser.add_argument('-m', '--mode', type=str, help='train mode', choices=['pt', 'ft', 'cft', 'r-ncft', 'w-ncft', 's-ncft'], default='ft')
+    parser.add_argument('-m', '--mode', type=str, help='train mode', default='ft')
     
     parser.add_argument('-d', '--dataset', type=str, default='cifar-100', help='Dataset name')
     parser.add_argument('-s', '--seed', type=int, default=42, help='Random seed')
