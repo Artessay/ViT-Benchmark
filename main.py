@@ -46,7 +46,6 @@ def main(args):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     vit_model = vit_model.to(device)
 
-    # 训练分类头
     if mode == 'pt':
         neural_function.activate_head(vit_model)
     elif mode == 'ft' or mode == 'cft':

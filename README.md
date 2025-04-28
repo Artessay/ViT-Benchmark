@@ -22,7 +22,7 @@ wget https://download.pytorch.org/models/vit_b_16-c867db91.pth -O checkpoints/vi
 | | ft | 85.52 |
 | | cft | 87.05 |
 | | ncft-random | 86.74 |
-| **imagenet** | pt | - |
+| **imagenet** | pt | 80.14 |
 | | ft | - |
 | | cft | - |
 | | ncft-random | - |
