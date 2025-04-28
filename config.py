@@ -25,7 +25,7 @@ CONFIG = {
         'epochs': 50, 
         'patience': 5,
         'pt_lr': 1e-3,
-        'lr': 3e-5,
+        'lr': 1e-5,
         'weight_decay': 1e-4,
         'batch_size': 512,
         'num_classes': 1000,
