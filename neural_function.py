@@ -220,3 +220,97 @@ def activate_neuron_based_on_gradient_trace(model: VisionTransformer, activate_r
                 mask = torch.zeros(output_dim, dtype=torch.bool, device=device)
                 mask[top_indices] = True
                 param.data *= mask.float()
+
+
+def calculate_shapley_value(param: torch.nn.Parameter) -> torch.Tensor:
+    """
+    Calculate the Shapley value for a given parameter.
+
+    Args:
+        param (torch.nn.Parameter): The parameter for which to calculate the Shapley value.
+
+    Returns:
+        float: The Shapley value of the parameter.
+    """
+    
+    # Compute the gradient trace
+    assert param.grad is not None
+
+    # Approximate Hessian matrix by Fisher information matrix
+    hessian_matrix = torch.outer(param.grad, param.grad)
+
+    # Compute the Shapley value
+    individual_importance = -param.grad * param
+    cooperative_interactions = -0.5 * torch.einsum('i,ij,j->', param, hessian_matrix, param)
+
+    shapley_value = individual_importance + cooperative_interactions
+    return shapley_value
+
+
+def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: float, val_loader: DataLoader, device):
+    """
+    Activate neurons in the model based on the Shapley value.
+
+    Args:
+        model (VisionTransformer): The Vision Transformer model.
+        activate_ratio (float): The ratio of neurons to be activated.
+        val_loader (DataLoader): The validation data loader.
+        device: The device (CPU or GPU) to run the model on.
+
+    Returns:
+        None: The function modifies the requires_grad attribute of model parameters in-place.
+    """
+    model.to(device)
+    model.eval()
+
+    # Store the gradient trace of each neuron
+    neuron_shapley_values = {}
+
+    for data in tqdm(val_loader, ncols=80, desc="calculating shapley values"):
+        images, labels = data[0].to(device), data[1].to(device)
+
+        # Zero the gradients
+        model.zero_grad()
+
+        # Forward pass
+        outputs = model(images)
+        loss = F.cross_entropy(outputs, labels)
+
+        # Backward pass to compute gradients
+        loss.backward()
+
+        # Compute gradient traces
+        for name, param in model.named_parameters():
+            if "encoder.layers" in name:
+                # Remove the .weight or .bias suffix to get the neuron identifier
+                neuron_key = name.rsplit('.', 1)[0]
+
+                if neuron_key not in neuron_shapley_values:
+                    neuron_shapley_values[neuron_key] = 0
+
+                # Compute the Shapley value for the parameter
+                assert False, "Shapley value calculation is not implemented now."
+                param_shapley_value = calculate_shapley_value(param)
+                shapley_value = param_shapley_value.sum().item()
+                
+                neuron_shapley_values[neuron_key] += shapley_value
+        exit(0)
+    # Sort neurons by gradient trace
+    sorted_neuron_keys = sorted(neuron_shapley_values.items(), key=lambda item: item[1], reverse=True)
+
+    # Select the number of neurons to activate
+    num_neurons = len(sorted_neuron_keys)
+    num_activate = int(num_neurons * activate_ratio)
+    activate_neuron_keys = [key for key, _ in sorted_neuron_keys[:num_activate]]
+
+    # Set the requires_grad attribute of parameters
+    for name, param in model.named_parameters():
+        if "encoder.layers" in name:
+            neuron_key = name.rsplit('.', 1)[0]
+            if neuron_key in activate_neuron_keys:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
+        else:
+            param.requires_grad = True
+

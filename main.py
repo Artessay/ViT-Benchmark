@@ -54,6 +54,8 @@ def main(args):
         neural_function.activate_random(vit_model, activate_ratio)
     elif mode == 'w-ncft':
         neural_function.activate_based_on_gradient_trace(vit_model, activate_ratio, val_loader, device)
+    elif mode == 's-ncft':
+        neural_function.activate_based_on_shapley_value(vit_model, activate_ratio, val_loader, device)
     else:
         raise ValueError(f"Mode {mode} is not supported.")
     
