@@ -233,16 +233,18 @@ def calculate_shapley_value(param: torch.nn.Parameter) -> torch.Tensor:
         float: The Shapley value of the parameter.
     """
     
-    # Compute the gradient trace
+    # Compute the shapley value for the parameter
     assert param.grad is not None
+    assert param.ndim == 2, "Shapley value calculation now is only supported for 2D parameters."
 
     # Approximate Hessian matrix by Fisher information matrix
-    hessian_matrix = torch.outer(param.grad, param.grad)
+    hessian_matrix = torch.matmul(param.grad, param.grad.T) # shape: (param.shape[0], param.shape[0])
 
     # Compute the Shapley value
-    individual_importance = -param.grad * param
-    cooperative_interactions = -0.5 * torch.einsum('i,ij,j->', param, hessian_matrix, param)
+    individual_importance = -torch.sum(param.grad * param, dim=1)  # shape: (param.shape[0],)
+    cooperative_interactions = -0.5 * torch.sum(param * torch.matmul(hessian_matrix, param), dim=1)  # shape: (param.shape[0],)
 
+    # The Shapley value is the sum of individual importance and cooperative interactions
     shapley_value = individual_importance + cooperative_interactions
     return shapley_value
 
@@ -263,6 +265,18 @@ def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: fl
     model.to(device)
     model.eval()
 
+    def param_name_check(name: str) -> bool:
+        """
+        Check if the parameter name is valid for Shapley value calculation.
+
+        Args:
+            name (str): The name of the parameter.
+
+        Returns:
+            bool: True if the parameter name is valid, False otherwise.
+        """
+        return "encoder.layers" in name and "mlp" in name and "weight" in name
+
     # Store the gradient trace of each neuron
     neuron_shapley_values = {}
 
@@ -281,7 +295,7 @@ def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: fl
 
         # Compute gradient traces
         for name, param in model.named_parameters():
-            if "encoder.layers" in name:
+            if param_name_check(name):
                 # Remove the .weight or .bias suffix to get the neuron identifier
                 neuron_key = name.rsplit('.', 1)[0]
 
@@ -289,12 +303,11 @@ def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: fl
                     neuron_shapley_values[neuron_key] = 0
 
                 # Compute the Shapley value for the parameter
-                assert False, "Shapley value calculation is not implemented now."
                 param_shapley_value = calculate_shapley_value(param)
                 shapley_value = param_shapley_value.sum().item()
                 
                 neuron_shapley_values[neuron_key] += shapley_value
-        exit(0)
+
     # Sort neurons by gradient trace
     sorted_neuron_keys = sorted(neuron_shapley_values.items(), key=lambda item: item[1], reverse=True)
 
@@ -305,7 +318,7 @@ def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: fl
 
     # Set the requires_grad attribute of parameters
     for name, param in model.named_parameters():
-        if "encoder.layers" in name:
+        if param_name_check(name):
             neuron_key = name.rsplit('.', 1)[0]
             if neuron_key in activate_neuron_keys:
                 param.requires_grad = True
