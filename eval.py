@@ -20,7 +20,7 @@ def main(args):
     _, val_loader, test_loader = get_data_loader(dataset_name, batch_size=batch_size)
 
     # 准备日志
-    config['activate_ratio'] = 0.3
+    config['activate_ratio'] = 0.7
     activate_ratio = config['activate_ratio']
     if "ncft" in mode:
         experiment_name = f"{model_name}_{dataset_name}_{mode}_{seed}_r{activate_ratio}"

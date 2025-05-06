@@ -5,8 +5,8 @@
     "lr": 3e-05,
     "weight_decay": 0.0,
     "batch_size": 512,
-    "num_classes": 100,
+    "num_classes": 10,
     "activate_ratio": 0.3,
     "model_name": "vit_b_16",
-    "accuracy": 6.47
+    "accuracy": 97.11
 }
