@@ -27,7 +27,7 @@ python eval.py
 ## Evaluation Result
 
 ### Train
-p
+
 | dataset | method | accuracy |
 |:----:|:----:|:----:|
 | **cifar - 10** | pt | 94.58 |
@@ -39,11 +39,13 @@ p
 | **cifar - 100** | pt | 79.69 |
 | | ft | 85.52 |
 | | cft | 87.05 |
+| | ncft-random-0.3  | 85.64 |
 | | ncft-random-0.7  | 86.74 |
 | | ncft-weight-0.1  | 84.72 |
-| | ncft-weight-0.3  | 86.31 |
+| | ncft-weight-0.3  | 86.30 |
 | | ncft-weight-0.5  | 86.49 |
-| | ncft-weight-0.7  | 86.76 |
+| | ncft-weight-0.7  | 86.77 |
+| | ncft-shapley-0.3 | 86.35 |
 | | ncft-shapley-0.5 | 86.49 |
 | | ncft-shapley-0.7 | 86.45 |
 | **imagenet** | pt | 80.14 |
@@ -51,4 +53,4 @@ p
 | | cft | 78.51 |
 | | ncft-random-0.7 | 79.57 |
 | | ncft-weight-0.7 | 79.54 |
-| | ncft-shapley-0.7 | - |
+| | ncft-shapley-0.7 | 79.57 |
