@@ -76,6 +76,146 @@ def activate_neuron_random(model: VisionTransformer, activate_ratio: float):
         weight_param.data[~mask] = 0
         bias_param.data[~mask] = 0
 
+
+def activate_based_on_gradient(model: VisionTransformer, activate_ratio: float, val_loader: DataLoader, device):
+    """
+    Activate neurons in the model based on the gradient.
+
+    Args:
+        model (VisionTransformer): The Vision Transformer model.
+        activate_ratio (float): The ratio of neurons to be activated.
+        val_loader (DataLoader): The validation data loader.
+        device: The device (CPU or GPU) to run the model on.
+
+    Returns:
+        None: The function modifies the requires_grad attribute of model parameters in-place.
+    """
+    model.to(device)
+    model.eval()
+
+    # Store the gradient trace of each neuron
+    neuron_gradient = {}
+
+    for data in tqdm(val_loader, ncols=80, desc="calculating gradient"):
+        images, labels = data[0].to(device), data[1].to(device)
+
+        # Zero the gradients
+        model.zero_grad()
+
+        # Forward pass
+        outputs = model(images)
+        loss = F.cross_entropy(outputs, labels)
+
+        # Backward pass to compute gradients
+        loss.backward()
+
+        # Compute gradient traces
+        for name, param in model.named_parameters():
+            if "encoder.layers" in name:
+                # Remove the .weight or .bias suffix to get the neuron identifier
+                neuron_key = name.rsplit('.', 1)[0]
+                if neuron_key not in neuron_gradient:
+                    neuron_gradient[neuron_key] = 0
+
+                # Compute the gradient trace
+                if param.grad is not None:
+                    param_gradient = torch.abs(param.grad).sum().item()
+                    neuron_gradient[neuron_key] += param_gradient
+
+    # Sort neurons by gradient trace
+    sorted_neuron_keys = sorted(neuron_gradient.items(), key=lambda item: item[1], reverse=True)
+
+    # Select the number of neurons to activate
+    num_neurons = len(sorted_neuron_keys)
+    num_activate = int(num_neurons * activate_ratio)
+    activate_neuron_keys = [key for key, _ in sorted_neuron_keys[:num_activate]]
+
+    # Set the requires_grad attribute of parameters
+    for name, param in model.named_parameters():
+        if "encoder.layers" in name:
+            neuron_key = name.rsplit('.', 1)[0]
+            if neuron_key in activate_neuron_keys:
+                param.requires_grad = True
+            else:
+                param.requires_grad = False
+        else:
+            param.requires_grad = True
+
+
+def activate_neuron_based_on_gradient(model: VisionTransformer, activate_ratio: float, val_loader: DataLoader, device):
+    """
+    Activate neurons in the model based on the gradient.
+
+    Args:
+        model (VisionTransformer): The Vision Transformer model.
+        activate_ratio (float): The ratio of neurons to be activated.
+        val_loader (DataLoader): The validation data loader.
+        device: The device (CPU or GPU) to run the model on.
+
+    Returns:
+        None: The function modifies the requires_grad attribute of model parameters in-place.
+    """
+    model.to(device)
+    model.eval()
+
+    # Store the gradient trace of each weight
+    weight_neuron_gradient = {}
+
+    for data in tqdm(val_loader, ncols=80, desc="Calculating gradient"):
+        images, labels = data[0].to(device), data[1].to(device)
+
+        # Zero the gradients
+        model.zero_grad()
+
+        # Forward pass
+        outputs = model(images)
+        loss = F.cross_entropy(outputs, labels)
+
+        # Backward pass to compute gradients
+        loss.backward()
+
+        # Compute gradient traces only for weights
+        for name, param in model.named_parameters():
+            if "encoder.layers" in name and "mlp" in name and "weight" in name:
+                assert param.grad is not None
+
+                # Compute the gradient
+                param_gradient = torch.abs(param.grad)
+                if name not in weight_neuron_gradient:
+                    weight_neuron_gradient[name] = param_gradient
+                else:
+                    weight_neuron_gradient[name] += param_gradient
+
+    # Activate neurons based on gradient traces
+    for name, param in model.named_parameters():
+        if "encoder.layers" in name and "mlp" in name:
+            if "weight" in name:
+                param_gradient = weight_neuron_gradient[name]
+                output_dim = param_gradient.shape[0]
+                num_to_activate = int(output_dim * activate_ratio)
+                # Calculate the sum of gradient traces for each output dimension
+                trace_per_output = param_gradient.sum(dim=1)
+                sorted_indices = torch.argsort(trace_per_output, descending=True)
+                top_indices = sorted_indices[:num_to_activate]
+                mask = torch.zeros(output_dim, dtype=torch.bool, device=device)
+                mask[top_indices] = True
+                # Expand the mask to the shape of the weight
+                expanded_mask = mask.unsqueeze(1).expand_as(param)
+                param.data *= expanded_mask.float()
+            elif "bias" in name:
+                # Find the corresponding weight name
+                weight_name = name.rsplit('.', 1)[0] + '.weight'
+                param_gradient = weight_neuron_gradient[weight_name]
+                output_dim = param_gradient.shape[0]
+                num_to_activate = int(output_dim * activate_ratio)
+                # Calculate the sum of gradient traces for each output dimension
+                trace_per_output = param_gradient.sum(dim=1)
+                sorted_indices = torch.argsort(trace_per_output, descending=True)
+                top_indices = sorted_indices[:num_to_activate]
+                mask = torch.zeros(output_dim, dtype=torch.bool, device=device)
+                mask[top_indices] = True
+                param.data *= mask.float()
+
 def activate_based_on_gradient_trace(model: VisionTransformer, activate_ratio: float, val_loader: DataLoader, device):
     """
     Activate neurons in the model based on the gradient trace.

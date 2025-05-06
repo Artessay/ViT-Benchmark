@@ -52,6 +52,8 @@ def main(args):
         neural_function.activate_full(vit_model)
     elif mode == 'r-ncft':
         neural_function.activate_random(vit_model, activate_ratio)
+    elif mode == 'g-ncft':
+        neural_function.activate_based_on_gradient(vit_model, activate_ratio, val_loader, device)
     elif mode == 'w-ncft':
         neural_function.activate_based_on_gradient_trace(vit_model, activate_ratio, val_loader, device)
     elif mode == 's-ncft':
