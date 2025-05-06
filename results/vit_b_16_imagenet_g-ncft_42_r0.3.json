@@ -1,0 +1,12 @@
+{
+    "epochs": 50,
+    "patience": 5,
+    "pt_lr": 0.001,
+    "lr": 1e-05,
+    "weight_decay": 0.0001,
+    "batch_size": 512,
+    "num_classes": 1000,
+    "activate_ratio": 0.3,
+    "model_name": "vit_b_16",
+    "accuracy": 1.15
+}
