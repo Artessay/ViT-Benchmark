@@ -34,7 +34,8 @@ python eval.py
 | | ft | 97.67 |
 | | cft | 97.99 |
 | | ncft-random  | 98.02 |
-| | ncft-weight  | 97.99 |
+| | ncft-gradient| 97.85 |
+| | ncft-weight  | 97.91 |
 | | ncft-shapley | 97.78 |
 | **cifar - 100** | pt | 79.69 |
 | | ft | 85.52 |
@@ -51,6 +52,9 @@ python eval.py
 | **imagenet** | pt | 80.14 |
 | | ft | 78.09 |
 | | cft | 78.51 |
+| | ncft-random-0.3 | 79.70 |
+| | ncft-weight-0.3 | 79.61 |
+| | ncft-shapley-0.3 | 79.60 |
 | | ncft-random-0.7 | 79.57 |
 | | ncft-weight-0.7 | 79.54 |
 | | ncft-shapley-0.7 | 79.57 |

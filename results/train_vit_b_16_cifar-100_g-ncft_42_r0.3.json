@@ -8,5 +8,5 @@
     "num_classes": 100,
     "activate_ratio": 0.3,
     "model_name": "vit_b_16",
-    "accuracy": 84.79
+    "accuracy": 86.2
 }
