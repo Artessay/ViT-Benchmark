@@ -483,7 +483,6 @@ def activate_neuron_based_on_shapley_value(model: VisionTransformer, activate_ra
     """
     model.to(device)
     model.eval()
-    assert False
 
     def param_name_check(name: str) -> bool:
         """
@@ -498,7 +497,7 @@ def activate_neuron_based_on_shapley_value(model: VisionTransformer, activate_ra
         return "encoder.layers" in name and "mlp" in name and "weight" in name
 
     # Store the gradient trace of each neuron
-    neuron_shapley_values = {}
+    weight_shapley_values = {}
 
     for data in tqdm(val_loader, ncols=80, desc="calculating shapley values"):
         images, labels = data[0].to(device), data[1].to(device)
@@ -516,34 +515,43 @@ def activate_neuron_based_on_shapley_value(model: VisionTransformer, activate_ra
         # Compute gradient traces
         for name, param in model.named_parameters():
             if param_name_check(name):
-                # Remove the .weight or .bias suffix to get the neuron identifier
-                neuron_key = name.rsplit('.', 1)[0]
-
-                if neuron_key not in neuron_shapley_values:
-                    neuron_shapley_values[neuron_key] = 0
-
                 # Compute the Shapley value for the parameter
                 param_shapley_value = calculate_shapley_value(param)
-                shapley_value = param_shapley_value.sum().item()
+                param_shapley_value = torch.abs(param_shapley_value)
                 
-                neuron_shapley_values[neuron_key] += shapley_value
+                if name not in weight_shapley_values:
+                    weight_shapley_values[name] = param_shapley_value
+                else:
+                    weight_shapley_values[name] += param_shapley_value
 
-    # Sort neurons by gradient trace
-    sorted_neuron_keys = sorted(neuron_shapley_values.items(), key=lambda item: item[1], reverse=True)
-
-    # Select the number of neurons to activate
-    num_neurons = len(sorted_neuron_keys)
-    num_activate = int(num_neurons * activate_ratio)
-    activate_neuron_keys = [key for key, _ in sorted_neuron_keys[:num_activate]]
-
-    # Set the requires_grad attribute of parameters
+    # Activate neurons based on gradient traces
     for name, param in model.named_parameters():
-        if param_name_check(name):
-            neuron_key = name.rsplit('.', 1)[0]
-            if neuron_key in activate_neuron_keys:
-                param.requires_grad = True
-            else:
-                param.requires_grad = False
-        else:
-            param.requires_grad = True
+        if "encoder.layers" in name and "mlp" in name:
+            if "weight" in name:
+                shapley_value = weight_shapley_values[name]
+                output_dim = shapley_value.shape[0]
+                num_to_activate = int(output_dim * activate_ratio)
+
+                # select the top num_to_activate neurons
+                sorted_indices = torch.argsort(shapley_value, descending=True)
+                top_indices = sorted_indices[:num_to_activate]
+                mask = torch.zeros(output_dim, dtype=torch.bool, device=device)
+                mask[top_indices] = True
+
+                # Expand the mask to the shape of the weight
+                expanded_mask = mask.unsqueeze(1).expand_as(param)
+                param.data *= expanded_mask.float()
+            elif "bias" in name:
+                # Find the corresponding weight name
+                weight_name = name.rsplit('.', 1)[0] + '.weight'
+                shapley_value = weight_shapley_values[weight_name]
+                output_dim = shapley_value.shape[0]
+                num_to_activate = int(output_dim * activate_ratio)
+                
+                # select the top num_to_activate neurons
+                sorted_indices = torch.argsort(shapley_value, descending=True)
+                top_indices = sorted_indices[:num_to_activate]
+                mask = torch.zeros(output_dim, dtype=torch.bool, device=device)
+                mask[top_indices] = True
+                param.data *= mask.float()
 

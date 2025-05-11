@@ -15,13 +15,13 @@ wget https://download.pytorch.org/models/vit_b_16-c867db91.pth -O checkpoints/vi
 Train model:
 
 ```sh
-python main.py
+python main.py -m [mode] -d [dataset] -s [seed]
 ```
 
 Evaluate model:
 
 ```sh
-python eval.py
+python eval.py -m [mode] -d [dataset] -s [seed]
 ```
 
 ## Evaluation Result
