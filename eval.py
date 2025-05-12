@@ -4,7 +4,7 @@ import torch
 import neural_function
 from config import CONFIG
 from data_loader import get_data_loader
-from vit_loader import create_vit_model, load_vit_model
+from vit_loader import load_vit_model
 from train_and_eval import evaluate
 from utils import seed_everything
 

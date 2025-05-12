@@ -180,7 +180,7 @@ def activate_neuron_based_on_gradient(model: VisionTransformer, activate_ratio: 
                 assert param.grad is not None
 
                 # Compute the gradient
-                param_gradient = torch.abs(param.grad)
+                param_gradient = torch.abs(param.grad).detach()
                 if name not in weight_neuron_gradient:
                     weight_neuron_gradient[name] = param_gradient
                 else:
@@ -325,11 +325,12 @@ def activate_neuron_based_on_gradient_trace(model: VisionTransformer, activate_r
                 assert param.grad is not None
 
                 # Compute the gradient trace
-                gradient_trace = torch.abs(param * param.grad)
-                if name not in weight_gradient_traces:
-                    weight_gradient_traces[name] = gradient_trace
-                else:
-                    weight_gradient_traces[name] += gradient_trace
+                with torch.no_grad():
+                    gradient_trace = torch.abs(param * param.grad).detach()
+                    if name not in weight_gradient_traces:
+                        weight_gradient_traces[name] = gradient_trace
+                    else:
+                        weight_gradient_traces[name] += gradient_trace
 
     # Activate neurons based on gradient traces
     for name, param in model.named_parameters():
@@ -362,6 +363,7 @@ def activate_neuron_based_on_gradient_trace(model: VisionTransformer, activate_r
                 param.data *= mask.float()
 
 
+@torch.no_grad()
 def calculate_shapley_value(param: torch.nn.Parameter) -> torch.Tensor:
     """
     Calculate the Shapley value for a given parameter.
@@ -516,7 +518,7 @@ def activate_neuron_based_on_shapley_value(model: VisionTransformer, activate_ra
         for name, param in model.named_parameters():
             if param_name_check(name):
                 # Compute the Shapley value for the parameter
-                param_shapley_value = calculate_shapley_value(param)
+                param_shapley_value = calculate_shapley_value(param).detach()
                 param_shapley_value = torch.abs(param_shapley_value)
                 
                 if name not in weight_shapley_values:
