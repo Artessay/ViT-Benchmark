@@ -1,9 +1,12 @@
-import torch
 import random
+
+import torch
 import torch.nn.functional as F
-from tqdm import tqdm
 from torch.utils.data import DataLoader
+from tqdm import tqdm
+
 from vision_transformer import VisionTransformer
+
 
 def activate_head(model: VisionTransformer):
     for name, param in model.named_parameters():
@@ -12,9 +15,11 @@ def activate_head(model: VisionTransformer):
         else:
             param.requires_grad = False
 
+
 def activate_full(model: VisionTransformer):
     for param in model.parameters():
         param.requires_grad = True
+
 
 def activate_random(model: VisionTransformer, activate_ratio: float):
     """randomly select some neurals, and froze other neurals"""
@@ -22,7 +27,7 @@ def activate_random(model: VisionTransformer, activate_ratio: float):
     for name, param in model.named_parameters():
         if "encoder.layers" in name:
             # Get the neuron identifier by removing the .weight or .bias suffix
-            neuron_key = name.rsplit('.', 1)[0]
+            neuron_key = name.rsplit(".", 1)[0]
             if neuron_key not in neuron_groups:
                 neuron_groups[neuron_key] = []
             neuron_groups[neuron_key].append((name, param))
@@ -43,15 +48,16 @@ def activate_random(model: VisionTransformer, activate_ratio: float):
             for _, param in param_group:
                 param.requires_grad = False
 
+
 def activate_neuron_random(model: VisionTransformer, activate_ratio: float):
     """randomly select some neurals, and froze other neurals"""
     neuron_groups = {}
     for name, param in model.named_parameters():
         if "encoder.layers" in name and "mlp" in name:
             # Get the neuron identifier by removing the .weight or .bias suffix
-            neuron_key = name.rsplit('.', 1)[0]
-            neuron_value = name.rsplit('.', 1)[1]
-            assert neuron_value in ['weight', 'bias']
+            neuron_key = name.rsplit(".", 1)[0]
+            neuron_value = name.rsplit(".", 1)[1]
+            assert neuron_value in ["weight", "bias"]
 
             if neuron_key not in neuron_groups:
                 neuron_groups[neuron_key] = {}
@@ -59,8 +65,8 @@ def activate_neuron_random(model: VisionTransformer, activate_ratio: float):
 
     # Set the requires_grad attribute of parameters
     for neuron_key, param_dict in neuron_groups.items():
-        weight_param: torch.nn.Parameter = param_dict['weight']
-        bias_param: torch.nn.Parameter = param_dict['bias']
+        weight_param: torch.nn.Parameter = param_dict["weight"]
+        bias_param: torch.nn.Parameter = param_dict["bias"]
         assert weight_param.shape[0] == bias_param.shape[0]
         num_neurons = weight_param.shape[0]
         num_activate = int(num_neurons * activate_ratio)
@@ -113,7 +119,7 @@ def activate_based_on_gradient(model: VisionTransformer, activate_ratio: float, 
         for name, param in model.named_parameters():
             if "encoder.layers" in name:
                 # Remove the .weight or .bias suffix to get the neuron identifier
-                neuron_key = name.rsplit('.', 1)[0]
+                neuron_key = name.rsplit(".", 1)[0]
                 if neuron_key not in neuron_gradient:
                     neuron_gradient[neuron_key] = 0
 
@@ -133,7 +139,7 @@ def activate_based_on_gradient(model: VisionTransformer, activate_ratio: float, 
     # Set the requires_grad attribute of parameters
     for name, param in model.named_parameters():
         if "encoder.layers" in name:
-            neuron_key = name.rsplit('.', 1)[0]
+            neuron_key = name.rsplit(".", 1)[0]
             if neuron_key in activate_neuron_keys:
                 param.requires_grad = True
             else:
@@ -204,7 +210,7 @@ def activate_neuron_based_on_gradient(model: VisionTransformer, activate_ratio: 
                 param.data *= expanded_mask.float()
             elif "bias" in name:
                 # Find the corresponding weight name
-                weight_name = name.rsplit('.', 1)[0] + '.weight'
+                weight_name = name.rsplit(".", 1)[0] + ".weight"
                 param_gradient = weight_neuron_gradient[weight_name]
                 output_dim = param_gradient.shape[0]
                 num_to_activate = int(output_dim * activate_ratio)
@@ -215,6 +221,7 @@ def activate_neuron_based_on_gradient(model: VisionTransformer, activate_ratio: 
                 mask = torch.zeros(output_dim, dtype=torch.bool, device=device)
                 mask[top_indices] = True
                 param.data *= mask.float()
+
 
 def activate_based_on_gradient_trace(model: VisionTransformer, activate_ratio: float, val_loader: DataLoader, device):
     """
@@ -255,7 +262,7 @@ def activate_based_on_gradient_trace(model: VisionTransformer, activate_ratio: f
         for name, param in model.named_parameters():
             if "encoder.layers" in name:
                 # Remove the .weight or .bias suffix to get the neuron identifier
-                neuron_key = name.rsplit('.', 1)[0]
+                neuron_key = name.rsplit(".", 1)[0]
                 if neuron_key not in neuron_gradient_traces:
                     neuron_gradient_traces[neuron_key] = 0
 
@@ -275,7 +282,7 @@ def activate_based_on_gradient_trace(model: VisionTransformer, activate_ratio: f
     # Set the requires_grad attribute of parameters
     for name, param in model.named_parameters():
         if "encoder.layers" in name:
-            neuron_key = name.rsplit('.', 1)[0]
+            neuron_key = name.rsplit(".", 1)[0]
             if neuron_key in activate_neuron_keys:
                 param.requires_grad = True
             else:
@@ -350,7 +357,7 @@ def activate_neuron_based_on_gradient_trace(model: VisionTransformer, activate_r
                 param.data *= expanded_mask.float()
             elif "bias" in name:
                 # Find the corresponding weight name
-                weight_name = name.rsplit('.', 1)[0] + '.weight'
+                weight_name = name.rsplit(".", 1)[0] + ".weight"
                 gradient_trace = weight_gradient_traces[weight_name]
                 output_dim = gradient_trace.shape[0]
                 num_to_activate = int(output_dim * activate_ratio)
@@ -374,13 +381,13 @@ def calculate_shapley_value(param: torch.nn.Parameter) -> torch.Tensor:
     Returns:
         float: The Shapley value of the parameter.
     """
-    
+
     # Compute the shapley value for the parameter
     assert param.grad is not None
     assert param.ndim == 2, "Shapley value calculation now is only supported for 2D parameters."
 
     # Approximate Hessian matrix by Fisher information matrix
-    hessian_matrix = torch.matmul(param.grad, param.grad.T) # shape: (param.shape[0], param.shape[0])
+    hessian_matrix = torch.matmul(param.grad, param.grad.T)  # shape: (param.shape[0], param.shape[0])
 
     # Compute the Shapley value
     individual_importance = -torch.sum(param.grad * param, dim=1)  # shape: (param.shape[0],)
@@ -439,7 +446,7 @@ def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: fl
         for name, param in model.named_parameters():
             if param_name_check(name):
                 # Remove the .weight or .bias suffix to get the neuron identifier
-                neuron_key = name.rsplit('.', 1)[0]
+                neuron_key = name.rsplit(".", 1)[0]
 
                 if neuron_key not in neuron_shapley_values:
                     neuron_shapley_values[neuron_key] = 0
@@ -447,7 +454,7 @@ def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: fl
                 # Compute the Shapley value for the parameter
                 param_shapley_value = calculate_shapley_value(param)
                 shapley_value = param_shapley_value.sum().item()
-                
+
                 neuron_shapley_values[neuron_key] += shapley_value
 
     # Sort neurons by gradient trace
@@ -461,7 +468,7 @@ def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: fl
     # Set the requires_grad attribute of parameters
     for name, param in model.named_parameters():
         if param_name_check(name):
-            neuron_key = name.rsplit('.', 1)[0]
+            neuron_key = name.rsplit(".", 1)[0]
             if neuron_key in activate_neuron_keys:
                 param.requires_grad = True
             else:
@@ -520,7 +527,7 @@ def activate_neuron_based_on_shapley_value(model: VisionTransformer, activate_ra
                 # Compute the Shapley value for the parameter
                 param_shapley_value = calculate_shapley_value(param).detach()
                 param_shapley_value = torch.abs(param_shapley_value)
-                
+
                 if name not in weight_shapley_values:
                     weight_shapley_values[name] = param_shapley_value
                 else:
@@ -545,15 +552,14 @@ def activate_neuron_based_on_shapley_value(model: VisionTransformer, activate_ra
                 param.data *= expanded_mask.float()
             elif "bias" in name:
                 # Find the corresponding weight name
-                weight_name = name.rsplit('.', 1)[0] + '.weight'
+                weight_name = name.rsplit(".", 1)[0] + ".weight"
                 shapley_value = weight_shapley_values[weight_name]
                 output_dim = shapley_value.shape[0]
                 num_to_activate = int(output_dim * activate_ratio)
-                
+
                 # select the top num_to_activate neurons
                 sorted_indices = torch.argsort(shapley_value, descending=True)
                 top_indices = sorted_indices[:num_to_activate]
                 mask = torch.zeros(output_dim, dtype=torch.bool, device=device)
                 mask[top_indices] = True
                 param.data *= mask.float()
-

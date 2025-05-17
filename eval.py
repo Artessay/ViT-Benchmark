@@ -26,8 +26,10 @@ def main(args):
         experiment_name = f"{model_name}_{dataset_name}_{mode}_{seed}_r{activate_ratio}"
     else:
         experiment_name = f"{model_name}_{dataset_name}_{mode}_{seed}"
+
     save_path = f"checkpoints/{experiment_name}.pth"
     result_path = f"results/{experiment_name}.json"
+
 
 
     # 加载预训练的ViT模型
