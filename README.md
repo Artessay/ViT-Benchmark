@@ -1,5 +1,20 @@
 # ViT-Benchmark
 
+## Install
+
+Create conda environment.
+
+```bash
+conda create -n vit python=3.12 -y
+conda activate vit
+```
+
+Install dependencies.
+
+```bash
+pip install -r requirements.txt
+```
+
 ## Download Dataset and Checkpoints
 
 Download ImageNet dataset on `https://image-net.org` and place it in the folder `data/imagenet/`.
