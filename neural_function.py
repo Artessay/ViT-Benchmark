@@ -5,6 +5,13 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from bid_shapley import (
+    build_bid_parameter_masks,
+    collect_bid_unit_specs,
+    compute_bid_shapley_scores,
+    select_top_bid_units,
+)
+from masked_optimization import apply_parameter_masks, install_gradient_masks
 from vision_transformer import VisionTransformer
 
 
@@ -563,3 +570,29 @@ def activate_neuron_based_on_shapley_value(model: VisionTransformer, activate_ra
                 mask = torch.zeros(output_dim, dtype=torch.bool, device=device)
                 mask[top_indices] = True
                 param.data *= mask.float()
+
+
+def activate_based_on_bid_shapley_value(
+    model: VisionTransformer,
+    activate_ratio: float,
+    val_loader: DataLoader,
+    device,
+):
+    scores = compute_bid_shapley_scores(model, val_loader, device)
+    selected_units = select_top_bid_units(scores, activate_ratio)
+    specs = collect_bid_unit_specs(model)
+    parameter_masks = build_bid_parameter_masks(specs, selected_units)
+    install_gradient_masks(model, parameter_masks)
+
+
+def activate_neuron_based_on_bid_shapley_value(
+    model: VisionTransformer,
+    activate_ratio: float,
+    val_loader: DataLoader,
+    device,
+):
+    scores = compute_bid_shapley_scores(model, val_loader, device)
+    selected_units = select_top_bid_units(scores, activate_ratio)
+    specs = collect_bid_unit_specs(model)
+    parameter_masks = build_bid_parameter_masks(specs, selected_units)
+    apply_parameter_masks(model, parameter_masks)

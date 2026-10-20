@@ -8,6 +8,9 @@ from torch.utils.data import DataLoader
 from torchvision.models import VisionTransformer
 from torch.utils.tensorboard import SummaryWriter
 
+from masked_optimization import clear_gradient_masks, create_mask_aware_adam, has_gradient_masks
+
+
 def train_one_epoch(model: VisionTransformer, train_loader: DataLoader, optimizer: Optimizer, device):
     model.to(device)
     model.train()
@@ -80,11 +83,19 @@ def train_with_partial_activate(
         logger: Logger, 
         writer: SummaryWriter,
 ):
-    optimizer = torch.optim.Adam(
-        filter(lambda p: p.requires_grad, model.parameters()),
-        lr=lr,
-        weight_decay=weight_decay,
-    )
+    if has_gradient_masks(model):
+        optimizer, hook_handles = create_mask_aware_adam(model.parameters(), lr, weight_decay)
+    else:
+        optimizer = torch.optim.Adam(
+            filter(lambda parameter: parameter.requires_grad, model.parameters()),
+            lr=lr,
+            weight_decay=weight_decay,
+        )
+        hook_handles = []
 
-    train(model, train_loader, val_loader, optimizer, epochs, patience, save_path, device, logger, writer)
-
+    try:
+        train(model, train_loader, val_loader, optimizer, epochs, patience, save_path, device, logger, writer)
+    finally:
+        for hook_handle in hook_handles:
+            hook_handle.remove()
+        clear_gradient_masks(model)
