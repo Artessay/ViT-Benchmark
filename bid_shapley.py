@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import math
-from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Dict, Iterator, Mapping, Sequence
+from typing import Dict, Mapping, Sequence
 
 import torch
 import torch.nn as nn
@@ -12,7 +11,11 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 
-BID_PATH_POINTS = (0.25, 0.5, 0.75)
+BID_PATH_BUDGET = 8
+BID_PATH_POINTS = tuple(
+    index / (BID_PATH_BUDGET + 1)
+    for index in range(1, BID_PATH_BUDGET + 1)
+)
 BID_FISHER_EPSILON = 1e-12
 BID_PROJECTION_CHUNK_SIZE = 256
 
@@ -122,6 +125,43 @@ def projected_focal_unit_gradient(
     return contributions
 
 
+def fisher_linearized_path_curvatures(
+    mean_projected_gradients: torch.Tensor,
+    baseline_curvature: torch.Tensor,
+    path_points: Sequence[float] = BID_PATH_POINTS,
+) -> list[torch.Tensor]:
+    """Approximate focal-unit path curvature from one empirical-Fisher pass.
+
+    Let q_b,u = <grad_b,u, theta_u> be the per-example projected gradient and
+    C_u(0) = E[q_b,u^2] its empirical-Fisher self curvature.  Transporting the
+    per-example gradient along theta_s = theta - s P_u theta with the Fisher
+    block frozen at the full model gives
+
+        q_b,u(s) ~= q_b,u(0) - s C_u(0).
+
+    Consequently C_u(s) can be evaluated from the first two moments collected
+    by a single forward/backward pass, without evaluating a separately perturbed
+    model for every unit and path point.  This is an additional local-Fisher
+    approximation to BiD-Shapley's focal path, made explicit here so that the
+    path integral remains unit-specific and its approximation is reproducible.
+    """
+
+    _validate_uniform_interior_points(path_points)
+    if mean_projected_gradients.shape != baseline_curvature.shape:
+        raise ValueError("BiD-Shapley path statistics must have matching shapes.")
+
+    path_curvatures = []
+    for path_point in path_points:
+        shift = path_point * baseline_curvature
+        curvature = (
+            baseline_curvature
+            - 2.0 * shift * mean_projected_gradients
+            + shift.square()
+        )
+        path_curvatures.append(curvature.clamp_min(0.0))
+    return path_curvatures
+
+
 def bid_scores_from_statistics(
     mean_projected_gradients: torch.Tensor,
     mean_fisher_row_sums: torch.Tensor,
@@ -151,24 +191,6 @@ def bid_scores_from_statistics(
     return scores, path_weights
 
 
-@contextmanager
-def _temporary_focal_removal_path(
-    spec: BiDUnitSpec,
-    original_weight: torch.Tensor,
-    unit_index: int,
-    path_point: float,
-) -> Iterator[torch.Tensor]:
-    parameter_unit = spec.module.weight.select(spec.unit_axis, unit_index)
-    original_unit = original_weight.select(spec.unit_axis, unit_index)
-    with torch.no_grad():
-        parameter_unit.copy_((1.0 - path_point) * original_unit)
-    try:
-        yield original_unit
-    finally:
-        with torch.no_grad():
-            parameter_unit.copy_(original_unit)
-
-
 def compute_bid_shapley_scores(
     model: nn.Module,
     probe_loader: DataLoader,
@@ -179,16 +201,17 @@ def compute_bid_shapley_scores(
     """Estimate BiD-Shapley scores for ViT MLP projection units.
 
     The probe objective remains the repository's image-classification cross-entropy.
-    Per-example Fisher contractions follow Eq. (8), and every unit uses the focal
-    removal path from Eqs. (9) and (12). For the self term, the implementation uses
-    the epsilon-stabilized exact-recovery interpretation stated after Eq. (12), then
-    adds the within-matrix cross terms from Eq. (7). The paper specifies the three
-    interior nodes but not their quadrature coefficients, so this implementation
-    explicitly uses an equal-weight interior rule at 0.25, 0.5, and 0.75.
+    Per-example Fisher contractions follow Eq. (8), while the unit-specific path
+    in Eqs. (9) and (12) is evaluated with a Fisher-linearized gradient transport.
+    This retains BiD-Shapley's path-weighted self and within-matrix interaction
+    terms, but obtains every path point from sufficient statistics collected by
+    one model forward/backward pass per probe batch. The B=8 equal-weight interior
+    rule uses s_j = j / (B + 1), j=1,...,B.
 
-    A literal focal-unit path requires one probe forward/backward pass per unit and
-    path point. This is intentionally expensive, but avoids replacing Eq. (9) with
-    a mathematically different shared/global removal path.
+    Unlike literal focal-unit reevaluation, this implementation never mutates a
+    unit or reruns the model at a perturbed checkpoint. The resulting path weight
+    is therefore a local empirical-Fisher approximation to the paper's numerical
+    focal path, not an exact measurement of curvature at the perturbed models.
     """
 
     _validate_uniform_interior_points(path_points)
@@ -205,25 +228,27 @@ def compute_bid_shapley_scores(
         (parameter, parameter.requires_grad)
         for parameter in model.parameters()
     ]
-    original_weights: dict[str, torch.Tensor] = {}
     first_moments: dict[str, torch.Tensor] = {}
     fisher_row_sums: dict[str, torch.Tensor] = {}
     baseline_curvature_sums: dict[str, torch.Tensor] = {}
-    path_curvature_sums: list[dict[str, torch.Tensor]] = []
     sample_count = 0
 
-    captures: dict[str, tuple[torch.Tensor, torch.Tensor]] = {}
-    active_parameter_names: set[str] = set()
     handles = []
     progress = None
+    processed_parameter_names: set[str] = set()
 
     try:
         model.eval()
         for parameter in model.parameters():
             parameter.requires_grad_(False)
 
+        # A single early projection weight is sufficient to keep the downstream
+        # graph differentiable. Output-gradient hooks then collect every supported
+        # projection's statistics during the same reverse traversal.
+        backward_anchor = specs[0].module.weight
+        backward_anchor.requires_grad_(True)
+
         for spec in specs:
-            original_weights[spec.parameter_name] = spec.module.weight.detach().clone()
             first_moments[spec.parameter_name] = torch.zeros(
                 spec.num_units,
                 dtype=torch.float64,
@@ -239,115 +264,65 @@ def compute_bid_shapley_scores(
                 dtype=torch.float64,
                 device=device,
             )
-        path_curvature_sums = [
-            {
-                spec.parameter_name: torch.zeros(spec.num_units, dtype=torch.float64, device=device)
-                for spec in specs
-            }
-            for _ in path_points
-        ]
 
         for spec in specs:
-            def capture_projection(module, inputs, output, parameter_name=spec.parameter_name):
-                if parameter_name in active_parameter_names:
-                    captures[parameter_name] = (inputs[0], output)
+            def capture_projection_gradient(module, inputs, output, current_spec=spec):
+                layer_input = inputs[0].detach()
+                original_weight = module.weight.detach()
 
-            handles.append(spec.module.register_forward_hook(capture_projection))
+                def accumulate_statistics(grad_output):
+                    with torch.no_grad():
+                        projected_gradients = projected_unit_gradients(
+                            layer_input,
+                            grad_output.detach(),
+                            original_weight,
+                            current_spec.unit_axis,
+                        ).to(dtype=torch.float64)
+                        parameter_name = current_spec.parameter_name
+                        first_moments[parameter_name] += projected_gradients.sum(dim=0)
+                        fisher_row_sums[parameter_name] += (
+                            projected_gradients
+                            * projected_gradients.sum(dim=1, keepdim=True)
+                        ).sum(dim=0)
+                        baseline_curvature_sums[parameter_name] += (
+                            projected_gradients.square().sum(dim=0)
+                        )
+                        processed_parameter_names.add(parameter_name)
 
-        num_scoring_passes = len(specs) + len(path_points) * sum(spec.num_units for spec in specs)
+                output.register_hook(accumulate_statistics)
+
+            handles.append(spec.module.register_forward_hook(capture_projection_gradient))
+
         try:
             num_probe_batches = len(probe_loader)
         except TypeError:
             num_probe_batches = None
-        progress_total = None if num_probe_batches is None else num_probe_batches * num_scoring_passes
+        progress_total = num_probe_batches
         progress = tqdm(total=progress_total, ncols=80, desc="calculating BiD-Shapley values")
 
         for data in probe_loader:
             images, labels = data[0].to(device), data[1].to(device)
+            processed_parameter_names.clear()
+            logits = model(images)
+            losses = F.cross_entropy(logits, labels, reduction="none")
+            torch.autograd.grad(losses.sum(), backward_anchor)
 
-            for spec in specs:
-                spec.module.weight.requires_grad_(True)
-                active_parameter_names.add(spec.parameter_name)
-                captures.clear()
-                logits = model(images)
-                losses = F.cross_entropy(logits, labels, reduction="none")
-                layer_input, projection_output = captures[spec.parameter_name]
-                grad_output, = torch.autograd.grad(losses.sum(), projection_output)
-                with torch.no_grad():
-                    projected_gradients = projected_unit_gradients(
-                        layer_input,
-                        grad_output,
-                        original_weights[spec.parameter_name],
-                        spec.unit_axis,
-                    ).to(dtype=torch.float64)
-
-                first_moments[spec.parameter_name] += projected_gradients.sum(dim=0)
-                fisher_row_sums[spec.parameter_name] += (
-                    projected_gradients * projected_gradients.sum(dim=1, keepdim=True)
-                ).sum(dim=0)
-                baseline_curvature_sums[spec.parameter_name] += projected_gradients.square().sum(dim=0)
-                progress.update()
-                active_parameter_names.clear()
-                captures.clear()
-                spec.module.weight.requires_grad_(False)
-                del logits, losses, layer_input, projection_output, grad_output, projected_gradients
-
+            missing_parameter_names = {
+                spec.parameter_name for spec in specs
+            }.difference(processed_parameter_names)
+            if missing_parameter_names:
+                missing_list = ", ".join(sorted(missing_parameter_names))
+                raise RuntimeError(
+                    f"BiD-Shapley did not receive projection gradients for: {missing_list}"
+                )
             sample_count += labels.shape[0]
-
-            for spec in specs:
-                spec.module.weight.requires_grad_(True)
-                parameter_name = spec.parameter_name
-                original_weight = original_weights[parameter_name]
-                active_parameter_names.add(parameter_name)
-
-                for unit_index in range(spec.num_units):
-                    for path_index, path_point in enumerate(path_points):
-                        captures.clear()
-                        with _temporary_focal_removal_path(
-                            spec,
-                            original_weight,
-                            unit_index,
-                            path_point,
-                        ) as original_unit:
-                            logits = model(images)
-                            losses = F.cross_entropy(logits, labels, reduction="none")
-                            layer_input, projection_output = captures[parameter_name]
-                            grad_output, = torch.autograd.grad(losses.sum(), projection_output)
-
-                            with torch.no_grad():
-                                focal_projected_gradients = projected_focal_unit_gradient(
-                                    layer_input,
-                                    grad_output,
-                                    original_unit,
-                                    unit_index,
-                                    spec.unit_axis,
-                                ).to(dtype=torch.float64)
-                                path_curvature_sums[path_index][parameter_name][unit_index] += (
-                                    focal_projected_gradients.square().sum()
-                                )
-
-                        progress.update()
-                        captures.clear()
-                        del (
-                            logits,
-                            losses,
-                            layer_input,
-                            projection_output,
-                            grad_output,
-                            focal_projected_gradients,
-                        )
-
-                active_parameter_names.clear()
-                spec.module.weight.requires_grad_(False)
+            progress.update()
+            del logits, losses
     finally:
         if progress is not None:
             progress.close()
         for handle in handles:
             handle.remove()
-        with torch.no_grad():
-            for spec in specs:
-                if spec.parameter_name in original_weights:
-                    spec.module.weight.copy_(original_weights[spec.parameter_name])
         for parameter, requires_grad in original_requires_grad:
             parameter.requires_grad_(requires_grad)
         for module, training in original_training_states:
@@ -362,10 +337,11 @@ def compute_bid_shapley_scores(
         mean_projected_gradients = first_moments[parameter_name] / sample_count
         mean_fisher_row_sums = fisher_row_sums[parameter_name] / sample_count
         baseline_curvature = baseline_curvature_sums[parameter_name] / sample_count
-        path_curvatures = [
-            path_curvature_sums[path_index][parameter_name] / sample_count
-            for path_index in range(len(path_points))
-        ]
+        path_curvatures = fisher_linearized_path_curvatures(
+            mean_projected_gradients,
+            baseline_curvature,
+            path_points,
+        )
         parameter_scores, _ = bid_scores_from_statistics(
             mean_projected_gradients,
             mean_fisher_row_sums,
