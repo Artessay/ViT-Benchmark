@@ -6,6 +6,9 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from bid_shapley import (
+    BID_FISHER_EPSILON,
+    BID_PATH_POINTS,
+    fisher_linearized_path_curvatures,
     build_bid_parameter_masks,
     collect_bid_unit_specs,
     compute_bid_shapley_scores,
@@ -379,33 +382,71 @@ def activate_neuron_based_on_gradient_trace(model: VisionTransformer, activate_r
 
 @torch.no_grad()
 def calculate_shapley_value(param: torch.nn.Parameter) -> torch.Tensor:
+    """Original s-ncft score with fixed interaction coefficient 0.5."""
+    return _calculate_shapley_value(param, path_integral=False)
+
+
+@torch.no_grad()
+def calculate_dynamic_shapley_value(param: torch.nn.Parameter) -> torch.Tensor:
+    """d-ncft: change only the interaction coefficient in the s-ncft score."""
+    return _calculate_shapley_value(param, path_integral=True)
+
+
+@torch.no_grad()
+def calculate_path_interaction_coefficients(param: torch.nn.Parameter) -> torch.Tensor:
+    """Compute one normalized path coefficient per output row.
+
+    Use s-ncft's batch-mean gradient, q_i = <grad_i, weight_i>, and the
+    directional empirical-Fisher proxy C_i(0) = q_i**2. As in b-ncft,
+    Fisher-linearized transport gives q_i(s) ~= q_i - s C_i(0).
+    With B=8 interior points, a_i = mean_j[(1-s_j) C_i(s_j)/C_i(0)].
+    Constant path curvature recovers a_i=0.5. A degenerate direction with
+    C_i(0) <= epsilon falls back to 0.5 rather than erasing interactions.
+
+    This is a local path approximation, not perturbed-model reevaluation.
+    In particular it intentionally retains batch gradients instead of b-ncft's
+    per-example statistics to isolate the coefficient change from s-ncft.
     """
-    Calculate the Shapley value for a given parameter.
+    assert param.grad is not None
+    assert param.ndim == 2
+    projected_gradient = (param.grad * param).sum(dim=1)
+    baseline_curvature = projected_gradient.square()
+    path_curvatures = fisher_linearized_path_curvatures(
+        projected_gradient, baseline_curvature, BID_PATH_POINTS
+    )
+    integral = sum(
+        (1.0 - point) * curvature
+        for point, curvature in zip(BID_PATH_POINTS, path_curvatures)
+    ) / len(BID_PATH_POINTS)
+    return torch.where(
+        baseline_curvature > BID_FISHER_EPSILON,
+        integral / baseline_curvature.clamp_min(BID_FISHER_EPSILON),
+        torch.full_like(baseline_curvature, 0.5),
+    )
 
-    Args:
-        param (torch.nn.Parameter): The parameter for which to calculate the Shapley value.
 
-    Returns:
-        float: The Shapley value of the parameter.
-    """
-
-    # Compute the shapley value for the parameter
+@torch.no_grad()
+def _calculate_shapley_value(param: torch.nn.Parameter, *, path_integral: bool) -> torch.Tensor:
     assert param.grad is not None
     assert param.ndim == 2, "Shapley value calculation now is only supported for 2D parameters."
-
-    # Approximate Hessian matrix by Fisher information matrix
-    hessian_matrix = torch.matmul(param.grad, param.grad.T)  # shape: (param.shape[0], param.shape[0])
-
-    # Compute the Shapley value
-    individual_importance = -torch.sum(param.grad * param, dim=1)  # shape: (param.shape[0],)
-    cooperative_interactions = -0.5 * torch.sum(param * torch.matmul(hessian_matrix, param), dim=1)  # shape: (param.shape[0],)
-
-    # The Shapley value is the sum of individual importance and cooperative interactions
-    shapley_value = individual_importance + cooperative_interactions
-    return shapley_value
+    hessian_matrix = torch.matmul(param.grad, param.grad.T)
+    individual_importance = -torch.sum(param.grad * param, dim=1)
+    coefficient = calculate_path_interaction_coefficients(param) if path_integral else 0.5
+    cooperative_interactions = -coefficient * torch.sum(
+        param * torch.matmul(hessian_matrix, param), dim=1
+    )
+    return individual_importance + cooperative_interactions
 
 
 def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: float, val_loader: DataLoader, device):
+    return _activate_based_on_shapley_value(model, activate_ratio, val_loader, device, calculate_shapley_value)
+
+
+def activate_based_on_dynamic_shapley_value(model, activate_ratio, val_loader, device):
+    return _activate_based_on_shapley_value(model, activate_ratio, val_loader, device, calculate_dynamic_shapley_value)
+
+
+def _activate_based_on_shapley_value(model, activate_ratio, val_loader, device, score_function):
     """
     Activate neurons in the model based on the Shapley value.
 
@@ -459,7 +500,7 @@ def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: fl
                     neuron_shapley_values[neuron_key] = 0
 
                 # Compute the Shapley value for the parameter
-                param_shapley_value = calculate_shapley_value(param)
+                param_shapley_value = score_function(param)
                 shapley_value = param_shapley_value.sum().item()
 
                 neuron_shapley_values[neuron_key] += shapley_value
@@ -485,6 +526,14 @@ def activate_based_on_shapley_value(model: VisionTransformer, activate_ratio: fl
 
 
 def activate_neuron_based_on_shapley_value(model: VisionTransformer, activate_ratio: float, val_loader: DataLoader, device):
+    return _activate_neuron_based_on_shapley_value(model, activate_ratio, val_loader, device, calculate_shapley_value)
+
+
+def activate_neuron_based_on_dynamic_shapley_value(model, activate_ratio, val_loader, device):
+    return _activate_neuron_based_on_shapley_value(model, activate_ratio, val_loader, device, calculate_dynamic_shapley_value)
+
+
+def _activate_neuron_based_on_shapley_value(model, activate_ratio, val_loader, device, score_function):
     """
     Activate neurons in the model based on the Shapley value.
 
@@ -532,7 +581,7 @@ def activate_neuron_based_on_shapley_value(model: VisionTransformer, activate_ra
         for name, param in model.named_parameters():
             if param_name_check(name):
                 # Compute the Shapley value for the parameter
-                param_shapley_value = calculate_shapley_value(param).detach()
+                param_shapley_value = score_function(param).detach()
                 param_shapley_value = torch.abs(param_shapley_value)
 
                 if name not in weight_shapley_values:

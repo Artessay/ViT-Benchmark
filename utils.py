@@ -51,7 +51,7 @@ def get_args():
         type=str,
         help="train mode",
         default="ft",
-        choices=["pt", "ft", "cft", "r-ncft", "g-ncft", "w-ncft", "s-ncft", "b-ncft"],
+        choices=["pt", "ft", "cft", "r-ncft", "g-ncft", "w-ncft", "s-ncft", "d-ncft", "b-ncft"],
     )
 
     parser.add_argument(

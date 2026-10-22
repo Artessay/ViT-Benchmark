@@ -2,7 +2,11 @@
 
 mkdir -p logs/eval
 
-CUDA_VISIBLE_DEVICES=1 nohup python eval.py -m b-ncft -d cifar-100 > logs/eval/b-ncft_cifar-100.log 2>&1 < /dev/null &
+CUDA_VISIBLE_DEVICES=1 nohup python eval.py -m d-ncft -d cifar-100 > logs/eval/d-ncft_cifar-100.log 2>&1 < /dev/null &
+CUDA_VISIBLE_DEVICES=3 nohup python eval.py -m d-ncft -d imagenet > logs/eval/d-ncft_imagenet.log 2>&1 < /dev/null &
+
+# CUDA_VISIBLE_DEVICES=1 nohup python eval.py -m b-ncft -d cifar-100 > logs/eval/b-ncft_cifar-100.log 2>&1 < /dev/null &
+# CUDA_VISIBLE_DEVICES=1 nohup python eval.py -m b-ncft -d imagenet > logs/eval/b-ncft_imagenet.log 2>&1 < /dev/null &
 
 # CUDA_VISIBLE_DEVICES=0 nohup python eval.py -m pt -d cifar-100 >> logs/eval/pt_cifar-100.log 2>&1
 # CUDA_VISIBLE_DEVICES=0 nohup python eval.py -m ft -d cifar-100 >> logs/eval/ft_cifar-100.log 2>&1

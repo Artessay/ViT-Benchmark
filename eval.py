@@ -54,6 +54,8 @@ def main(args):
         neural_function.activate_neuron_based_on_gradient_trace(vit_model, activate_ratio, val_loader, device)
     elif mode == 's-ncft':
         neural_function.activate_neuron_based_on_shapley_value(vit_model, activate_ratio, val_loader, device)
+    elif mode == 'd-ncft':
+        neural_function.activate_neuron_based_on_dynamic_shapley_value(vit_model, activate_ratio, val_loader, device)
     elif mode == 'b-ncft':
         neural_function.activate_neuron_based_on_bid_shapley_value(vit_model, activate_ratio, val_loader, device)
     else:
