@@ -3,7 +3,8 @@
 mkdir -p logs/train
 
 # CUDA_VISIBLE_DEVICES=0 nohup python main.py -m d-ncft -d cifar-100 -lr 1e-5 -activate_ratio 0.3 > logs/train/d-ncft_cifar-100_lr_1e-5_activate_ratio_0.3.log 2>&1 < /dev/null &
-CUDA_VISIBLE_DEVICES=2 nohup python main.py -m d-ncft -d imagenet -lr 1e-5 -activate_ratio 0.3 > logs/train/d-ncft_imagenet_lr_1e-5_activate_ratio_0.3.log 2>&1 < /dev/null &
+# CUDA_VISIBLE_DEVICES=0 nohup python main.py -m d-ncft -d imagenet -lr 1e-5 -activate_ratio 0.3 > logs/train/d-ncft_imagenet_lr_1e-5_activate_ratio_0.3.log 2>&1 < /dev/null &
+CUDA_VISIBLE_DEVICES=0 nohup python main.py -m d-ncft -d imagenet -lr 5e-6 -activate_ratio 0.3 > logs/train/d-ncft_imagenet_lr_5e-6_activate_ratio_0.3.log 2>&1 < /dev/null &
 
 # CUDA_VISIBLE_DEVICES=0 nohup python main.py -m s-ncft -d cifar-100 -lr 1e-5 -activate_ratio 0.1 >> logs/train/s-ncft_cifar-100_lr_1e-5_activate_ratio_0.1.log 2>&1 
 # CUDA_VISIBLE_DEVICES=0 nohup python main.py -m s-ncft -d cifar-100 -lr 1e-5 -activate_ratio 0.3 >> logs/train/s-ncft_cifar-100_lr_1e-5_activate_ratio_0.3.log 2>&1 
